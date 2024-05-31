@@ -33,6 +33,6 @@ RUN apt-get install libglib2.0-0
 
 # copy the folder of the Dockerfile and all its subfolders to the workspace folder and its subfolders in the container
 ADD . /workspace/
-RUN chmod +x /workspace/e2e_inference_online.sh
+RUN chmod -R 777 /workspace/
 ENTRYPOINT ["bash", "./workspace/e2e_inference_online.sh"]
 USER appuser
