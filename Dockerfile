@@ -6,10 +6,12 @@
 # or use miniconda3 and install the used ML-Framework as a dependency
 # FROM continuumio/miniconda3
 FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
+RUN groupadd -g 999 appuser && \
+    useradd -r -u 999 -g appuser appuser
 ARG DEBIAN_FRONTEND=noninteractive
 
 # keep index up to date
-RUN apt-get --allow-releaseinfo-change update
+# RUN apt-get --allow-releaseinfo-change update
 
 # install pip
 RUN apt-get update && apt-get install -y python3 && apt-get install -y python3-pip && apt-get install openslide-tools -y
@@ -29,6 +31,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r /workspace/pip_req
 # remove this line if openCV2 is not used
 RUN apt-get install libglib2.0-0
 
+USER appuser
 # copy the folder of the Dockerfile and all its subfolders to the workspace folder and its subfolders in the container
 ADD . /workspace/
 RUN chmod +x /workspace/e2e_inference_online.sh
