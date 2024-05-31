@@ -31,8 +31,8 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r /workspace/pip_req
 # remove this line if openCV2 is not used
 RUN apt-get install libglib2.0-0
 
-USER appuser
 # copy the folder of the Dockerfile and all its subfolders to the workspace folder and its subfolders in the container
 ADD . /workspace/
 RUN chmod +x /workspace/e2e_inference_online.sh
 ENTRYPOINT ["bash", "./workspace/e2e_inference_online.sh"]
+USER appuser
