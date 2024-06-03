@@ -47,13 +47,15 @@ def multi_run_main(handler, config):
     print(cnf['save_path'])
     model = handler(cnf)
     slide_ids, results = model.exec_test_online()
+    
+    # Prediction
 
     output_path = global_configs.configs[mode]['prediction_path']
     rs_dict = dict()
     for slide_id, result in zip(slide_ids, results):
         rs_dict[slide_id] = float(result)
     
-    json.dump(rs_dict, open(output_path, 'w'))
+    json.dump(float(result), open(output_path, 'w'))
 
 def get_args():
     parser = argparse.ArgumentParser()
