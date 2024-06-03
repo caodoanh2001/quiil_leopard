@@ -30,7 +30,7 @@ command_extract_features = " ".join([
     "--csv_path", os.path.join(configs["online"]["patch_path_advmil"], 'process_list_autogen.csv'),
     "--feat_dir", configs["online"]["feat_path"],
     "--features_type", "ctranspath",
-    "--batch_size 512",
+    "--batch_size 8",
     "--slide_ext .tif"
 ])
 
