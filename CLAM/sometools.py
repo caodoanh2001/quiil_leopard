@@ -1,3 +1,5 @@
+import sys
+sys.path.append('/workspace/CLAM/timm_versions/0.6.13/')
 from timm.models.layers.helpers import to_2tuple
 import timm
 import torch.nn as nn
