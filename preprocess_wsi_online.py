@@ -29,19 +29,20 @@ command_extract_features = " ".join([
     "--data_slide_dir", configs["online"]["source_path"],
     "--csv_path", os.path.join(configs["online"]["patch_path_advmil"], 'process_list_autogen.csv'),
     "--feat_dir", configs["online"]["feat_path"],
-    "--features_type", "ctranspath",
+    "--features_type", configs["online"]["feat_type"],
     "--batch_size 8",
     "--slide_ext .tif"
 ])
 
 if patch_level_2:
-    # print("Extracting patches level 2 ...")
+    print("Extracting patches level 2 ...")
     os.system(command_extract_patch_lv2)
 
 if patch_level_1:
-    # print("Extracting patches level 1 ...")
+    print("Extracting patches level 1 ...")
     os.system(command_extract_patch_lv1)
 
 if feats:
-    # print("Extracting features ...")
+    print("Extracting features ...")
+    print("Feature is being used:", configs["online"]["feat_type"])
     os.system(command_extract_features)
