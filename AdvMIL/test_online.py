@@ -40,20 +40,23 @@ def multi_run_main(handler, config):
 
     configs = grid(config)
     
-    cnf = configs[0] # model of split 0.
-    print('\n')
-    for k in hyperparams:
-        cnf['save_path'] += '-{}_{}'.format(k, cnf[k])
-    print(cnf['save_path'])
-    model = handler(cnf)
-    slide_ids, results = model.exec_test_online()
-    
+    # Ensemble multi-fold:
+    # cnf = configs[0]
+    ensemble_output = 0.
+    for cnf in configs:
+        print('\n')
+        for k in hyperparams:
+            cnf['save_path'] += '-{}_{}'.format(k, cnf[k])
+        # print(cnf['save_path'])
+        model = handler(cnf)
+        slide_ids, results = model.exec_test_online()
+        print(results)
+        ensemble_output += results[-1]
+
     # Prediction
+    result = ensemble_output / len(configs)
 
     output_path = global_configs.configs[mode]['prediction_path']
-    rs_dict = dict()
-    for slide_id, result in zip(slide_ids, results):
-        rs_dict[slide_id] = float(result)
     
     json.dump(float(result), open(output_path, 'w'))
 

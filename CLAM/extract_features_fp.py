@@ -18,11 +18,10 @@ import h5py
 import openslide
 device = torch.device('cuda')
 from torchvision import transforms
-import timm
 import torch.nn as nn
 from PIL import Image, ImageFilter, ImageOps
+import glob
 # from huggingface_hub import login
-from sometools import ctranspath
 
 mean = (0.485, 0.456, 0.406)
 std = (0.229, 0.224, 0.225)
@@ -65,13 +64,17 @@ transform = transforms.Compose(
 )
 
 def uni():
-	# login() # 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
-	# model = timm.create_model(
-	# 	"vit_large_patch16_224", img_size=224, patch_size=16, init_values=1e-5, num_classes=0, dynamic_img_size=True
-	# 	)
-	# model.load_state_dict(torch.load("./pretrained_weights/pytorch_model.bin", map_location="cpu"), strict=True)
-	# return model.cuda()
-	return
+	import sys
+	sys.path.append('/workspace/CLAM/timm_versions/0.9.16/')
+	import timm
+	dict_uni = dict()
+	for chunk in glob.glob('/workspace/pretrained_weights/uni/*'): dict_uni.update(torch.load(chunk))
+	model = timm.create_model(
+		"vit_large_patch16_224", img_size=224, patch_size=16, init_values=1e-5, num_classes=0, dynamic_img_size=True
+	)
+	# model.load_state_dict(torch.load(dict_uni, map_location="cpu"), strict=True)
+	model.load_state_dict(dict_uni, strict=True)
+	return model.cuda()
 
 def compute_w_loader(file_path, output_path, wsi, model,
  	batch_size = 8, verbose = 0, print_every=20, pretrained=True, 
@@ -148,6 +151,7 @@ if __name__ == '__main__':
 		pipeline_transforms = None
 
 	elif args.features_type == 'ctranspath':
+		from sometools import ctranspath
 		model = ctranspath()
 		model.head = nn.Identity()
 		model.load_state_dict(torch.load('/workspace/pretrained_weights/ctranspath.pth')['model'], strict=True)
@@ -156,6 +160,7 @@ if __name__ == '__main__':
 
 	elif args.features_type == 'uni':
 		model = uni()
+		model = model.to(device)
 		pipeline_transforms = trnsfrms_val
 
 	if torch.cuda.device_count() > 1:
