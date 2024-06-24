@@ -100,5 +100,5 @@ test_path: test # dataset name you want to test, which should be a key in the np
 test_load_path: ./advmil_best_model/leopard-data_split_seed_{}-gen_noi_noise_0-1 # path to load trained models
 test_save_path: ./results-robust/results-zeromask_test/advmil-best/leopard_{}-data_split_seed_{} # path to save test results
 test_mask_ratio: 0.8 # mask ratio 
-test_sampling_times: 30 # sampling times (in test mode) when predicting survival from each WSI. 
+test_sampling_times: 10 # sampling times (in test mode) when predicting survival from each WSI. 
 test_zero_noise: True # if using zero noise for testing
