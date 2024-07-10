@@ -64,7 +64,7 @@ def coords_x5_to_x20(path_patchi, path_patcho, patch_scale=4):
         data_coords = hf['coords']
         scaled_attrs = get_scaled_attrs(data_coords.attrs, patch_scale)
 
-        psize = data_coords.attrs['patch_size']
+        psize = data_coords.attrs['patch_size'] * patch_scale
         scaled_mat = get_scaled_matrix(psize, psize, patch_scale)
         coords = data_coords[:]
         for coord in coords:
