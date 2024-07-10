@@ -4,7 +4,7 @@ cuda_id: 0
 
 wandb_dir: /home/liup/repo/AdvMIL # path to this repo
 wandb_prj: AdvMIL-adv # wandb project name
-save_path: /workspace/results-adv_uni/leopard-patch # path to save log files during training and testing
+save_path: /workspace/results-adv_uni/leopard-patch_10x_1024 # path to save log files during training and testing
 
 # data
 dataset: NLST
