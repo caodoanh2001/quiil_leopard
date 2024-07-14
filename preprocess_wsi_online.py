@@ -13,6 +13,7 @@ command_extract_patch_lv2 = " ".join([
     "--source", configs["online"]["source_path"],
     "--save_dir", configs["online"]["patch_path"],
     "--patch_size", str(configs["online"]["patch_size"]),
+    "--step_size", str(configs["online"]["step_size"]),
     "--patch_level", str(configs["online"]["patch_level"]),
     "--seg --patch"
 ])
