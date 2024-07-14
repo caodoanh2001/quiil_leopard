@@ -14,8 +14,8 @@ configs = {
         'patch_path': '/data6/leopard/offline_datasets/Leopard_patches', # Directory that the patches would be saved
         'patch_path_advmil': '/data6/leopard/offline_datasets/Leopard_patches_advmil_l1', # Directory that the patches would be saved
         'feat_path': '/data6/leopard/offline_datasets/Leopard_feats_uni', # Directory that features would be saved
-        'patch_size': 256, # Image size
-        'patch_level': 2, # Magnification
+        'patch_size': 512, # Image size
+        'patch_level': 1, # Magnification
         'prediction_path': '/output/overall-survival-years.json', # Prediction output
         'feat_type': 'uni'
     }
