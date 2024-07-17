@@ -1,0 +1,6 @@
+**************** MODEL METRICS ****************
+train/cindex         -->   0.7641132019558453
+train/loss           -->   0.03673666715621948
+validation/cindex    -->   0.604143947655398
+validation/loss      -->   0.04856810346245766
+**************** MODEL METRICS ****************
