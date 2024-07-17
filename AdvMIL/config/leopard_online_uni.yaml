@@ -4,7 +4,7 @@ cuda_id: 0
 
 wandb_dir: /home/liup/repo/AdvMIL # path to this repo
 wandb_prj: AdvMIL-adv # wandb project name
-save_path: /workspace/results-adv_uni/leopard-patch_uni_512_at_40X # path to save log files during training and testing
+save_path: /workspace/results-adv_uni/leopard-patch_uni_1024_step_size_512_at_10X_dilated_attn # path to save log files during training and testing
 
 # data
 dataset: NLST
@@ -23,10 +23,10 @@ train_sampling: null # w/o data sampling
 
 # Backbone setting of MIL encoder
 bcb_mode: patch # choose patch, cluster, or graph
-bcb_dims: 1024-384-384 # the dims from input dim -> hidden dim -> embedding dim
+bcb_dims: 1024-320-320 # the dims from input dim -> hidden dim -> embedding dim
 
 # Generator setting (regarding the end part)
-gen_dims: 384-1 # embedding dim -> out dim
+gen_dims: 320-1 # embedding dim -> out dim
 gen_noi_noise: 0-1 # noise setting, 0-1 / 1-0 / 1-1
 gen_noi_noise_dist: uniform  # noise type, gaussian / uniform
 gen_noi_hops: 1
