@@ -4,9 +4,9 @@ configs = {
         'patch_path': '/workspace/Leopard_patches', # Directory that the patches would be saved
         'patch_path_advmil': '/workspace/Leopard_patches_advmil_l1', # Directory that the patches would be saved
         'feat_path': '/workspace/Leopard_feats_uni', # Directory that features would be saved
-        'patch_size': 512, # Image size
-        'step_size': 512,
-        'patch_level': 1, # Magnification
+        'patch_size': 256, # Image size
+        'step_size': 256,
+        'patch_level': 2, # Magnification
         'prediction_path': '/output/overall-survival-years.json', # Prediction output
         'feat_type': 'uni'
     }, 
