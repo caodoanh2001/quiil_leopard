@@ -106,8 +106,6 @@ def make_embedding_layer(backbone:str, args):
         layer = GAPoolPatchEmbedding(args.in_dim, args.out_dim, args.scale, args.dw_conv, args.ksize)
     elif backbone == 'avgpool':
         layer = AVGPoolPatchEmbedding(args.in_dim, args.out_dim, args.scale, args.dw_conv, args.ksize)
-    elif backbone == 'local_attn':
-        layer = AVGPoolPatchEmbeddingLocalAttn(args.in_dim, args.out_dim, args.scale, args.dw_conv, args.ksize)
     else:
         raise NotImplementedError(f'{backbone} has not implemented.')
     return layer
@@ -137,11 +135,11 @@ class AVGPoolPatchEmbedding(nn.Module):
     """
     def __init__(self, in_dim, out_dim, scale:int=4, dw_conv=False, ksize=3, stride=1):
         super(AVGPoolPatchEmbedding, self).__init__()
-        # assert scale == 4, 'It only supports for scale = 4'
+        assert scale == 4, 'It only supports for scale = 4'
         assert ksize == 1 or ksize == 3, 'It only supports for ksize = 1 or 3'
-        self.scale = 6
+        self.scale = scale
         self.stride = stride
-        if self.scale == 6:
+        if scale == 4:
             # Conv2D on the grid of 4 x 4: stride=2 + ksize=3 or stride=1 + ksize=1/3
             assert (stride == 2 and ksize == 3) or (stride == 1 and (ksize == 1 or ksize == 3)), \
                 'Invalid stride or kernel_size when scale=4'
@@ -167,44 +165,6 @@ class AVGPoolPatchEmbedding(nn.Module):
         x, L = sequence2square(x, self.scale//self.stride) # [B*N/16, C, 4/s, 4/s]
         x = self.pool(x) # [B*N/16, C, 1, 1]
         x = square2sequence(x, L) # [B, N/16, C]
-        return x
-    
-class AVGPoolPatchEmbeddingLocalAttn(nn.Module):
-    """head layer (FC/Conv2D) + pooling Layer (avg pooling) for patch embedding.
-    (1) ksize = 1 -> head layer = FC; (2) ksize = 3 -> head layer = Conv2D
-    Patch data with shape of [B, N, C]
-    if scale = 1, then apply Conv2d with stride=1: [B, N, C] -> [B, C, N] --conv1d--> [B, C', N]
-    elif scale = 2/4, then apply Conv2d with stride=2: [B, N, C] -> [B*(N/s^2), C, s, s] --conv2d--> [B*(N/s^2), C, 1, 1] -> [B, N/s^2, C]
-    """
-    def __init__(self, in_dim, out_dim, scale:int=4, dw_conv=False, ksize=3, stride=1):
-        super(AVGPoolPatchEmbeddingLocalAttn, self).__init__()
-        # assert scale == 4, 'It only supports for scale = 4'
-        assert ksize == 1 or ksize == 3, 'It only supports for ksize = 1 or 3'
-        self.scale = 6
-        self.stride = stride
-        if self.scale == 6:
-            # Conv2D on the grid of 4 x 4: stride=2 + ksize=3 or stride=1 + ksize=1/3
-            assert (stride == 2 and ksize == 3) or (stride == 1 and (ksize == 1 or ksize == 3)), \
-                'Invalid stride or kernel_size when scale=4'
-            if not dw_conv:
-                self.conv = nn.Conv2d(in_dim, out_dim, ksize, stride, padding=(ksize-1)//2)
-            else:
-                self.conv = None
-            # self.pool = nn.AdaptiveAvgPool2d(1)
-        else:
-            raise NotImplementedError()
-
-        self.norm = nn.LayerNorm(out_dim)
-        self.act = nn.ReLU(inplace=True)
-        print(f"Patch Embedding Layer with emb = {'FC' if ksize == 1 else 'Conv'}, pooling = AvgPool.")
-
-    def forward(self, x):
-        """x: [B, N ,C]"""
-        x, L = sequence2square(x, self.scale) # [B*N/16, C, 4, 4]
-        x = self.conv(x) # [B*N/16, C, 4/s, 4/s]
-        x = square2sequence(x, L) # [B, N/(s*s), C]
-        x = self.norm(x)
-        x = self.act(x)
         return x
 
 

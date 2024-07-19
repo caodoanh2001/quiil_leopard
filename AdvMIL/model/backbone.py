@@ -123,60 +123,6 @@ class DeepAttMISL(nn.Module):
         return H
 
 
-# class PatchGCN(nn.Module):
-#     """forked from the official implementation: 
-#         https://github.com/mahmoodlab/Patch-GCN/blob/master/models/model_graph_mil.py#L116
-#     """
-#     def __init__(self, dims:List, num_layers:int=3, edge_agg:str='spatial', dropout:float=0.25):
-#         super(PatchGCN, self).__init__()
-#         assert len(dims) == 3 # [1024, 384, 384]
-#         dim_in, dim_hid, dim_out = dims
-#         self.edge_agg = edge_agg
-#         self.num_layers = num_layers
-#         self.fc = nn.Sequential(*[nn.Linear(dim_in, dim_hid), nn.ReLU(), nn.Dropout(dropout)])
-#         self.layers = torch.nn.ModuleList()
-#         for i in range(self.num_layers):
-#             conv = GENConv(dim_hid, dim_hid, aggr='softmax', t=1.0, learn_t=True, num_layers=2, norm='layer')
-#             norm = nn.LayerNorm(dim_hid, elementwise_affine=True)
-#             act = nn.ReLU(inplace=True)
-#             layer = DeepGCNLayer(conv, norm, act, block='res', dropout=0.1, ckpt_grad=(i+1)%3)
-#             self.layers.append(layer)
-#         dim_sum = dim_hid * (1 + self.num_layers)
-#         self.path_phi = nn.Sequential(*[nn.Linear(dim_sum, dim_out), nn.ReLU(), nn.Dropout(dropout)])
-#         self.path_attention_head = Attn_Net_Gated(L=dim_out, D=dim_out, dropout=dropout, n_classes=1)
-
-#     def forward(self, x_path, *args):
-#         data = x_path
-#         if self.edge_agg == 'spatial':
-#             edge_index = data.edge_index
-#         elif self.edge_agg == 'latent':
-#             edge_index = data.edge_latent
-#         edge_attr = None
-#         x = self.fc(data.x)
-#         x_ = x 
-#         x = self.layers[0].conv(x_, edge_index, edge_attr)
-#         x_ = torch.cat([x_, x], axis=1)
-#         for layer in self.layers[1:]:
-#             x = layer(x, edge_index, edge_attr)
-#             x_ = torch.cat([x_, x], axis=1)
-#         h_path = x_ # [N, dim_sum], dim_sum = dim_hid * (1 + num_layers)
-#         h_path = self.path_phi(h_path) 
-#         # Global Attention Pooling
-#         A_path, h_path = self.path_attention_head(h_path)
-#         A_path = torch.transpose(A_path, 1, 0)
-#         H = torch.mm(F.softmax(A_path, dim=1), h_path)
-#         return H
-
-
-def sequence2square(x, s):
-    """[B, N, C] -> [B*(N/s^2), C, s, s]"""
-    size = x.size()
-    assert size[1] % (s * s) == 0
-    L = size[1] // (s * s)
-    x = x.view(-1, s, s, size[2])
-    x = x.permute(0, 3, 1, 2)
-    return x, L
-
 class DualTrans_HS(nn.Module):
     """The implementation of Transformer-based ESAT. Refer to Shen et al., AAAI, 2022.
     Convolution layer is simplied as a local avgpool layer for adapting to sparse patches.
@@ -186,36 +132,20 @@ class DualTrans_HS(nn.Module):
         super(DualTrans_HS, self).__init__()
         assert len(dims) == 3 # dim_in, dim_hid, dim_out = [1024, 384, 384]
         dim_in, dim_hid, dim_out = dims
-        self.dim_hid = dim_hid
         assert dim_hid == dim_out
         assert emb_backbone in ['avgpool', 'gapool']
         assert tra_backbone in ['Transformer', 'Identity']
-        # self.proj_layer = nn.Sequential(nn.Linear(dim_in, dim_hid, bias=True), nn.ReLU())
-        # self.norm_layer = nn.LayerNorm(dim_hid)
-        args_tra_backbone.d_model = dim_hid
-        self.local_encoder_layer = make_transformer_layer(tra_backbone, args_tra_backbone)
-        # args_emb_backbone.in_dim = dim_hid
-        self.patch_embedding_layer = make_embedding_layer("local_attn", args_emb_backbone)
-        args_tra_backbone.d_model = dim_hid
+        self.patch_embedding_layer = make_embedding_layer(emb_backbone, args_emb_backbone)
+        # self.dim_hid = dim_hid
         self.patch_encoder_layer = make_transformer_layer(tra_backbone, args_tra_backbone)
         self.pool = GAPool(dim_out, dim_out)
 
-    def forward(self, x, cluster_id, *args):
+    def forward(self, x, coord, *args):
         """x: [B, N, d], coord: the coordinates after discretization if not None"""
-        # First projection
-        
-        # Pooling
-        x = self.patch_embedding_layer(x)
-
-        x, L = sequence2square(x, 6)
-        N, d, p, p = x.shape
-        x = x.view(N, d, -1).permute(0, 2, 1)
-
-        # Local attention
-        x = self.local_encoder_layer(x)
-        x = x.mean(1).unsqueeze(0)
-
-        # Region attention
-        x = self.patch_encoder_layer(x)
-        H = self.pool(x)
+        patch_emb = self.patch_embedding_layer(x)
+        # if coord is not None:
+        #     PE = compute_pe(coord, ndim=self.dim_hid, device=x.device, dtype=x.dtype)
+        #     patch_emb += PE
+        patch_feat = self.patch_encoder_layer(patch_emb)
+        H = self.pool(patch_feat)
         return H
