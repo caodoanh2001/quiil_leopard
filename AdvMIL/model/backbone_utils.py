@@ -73,7 +73,7 @@ def square2sequence(x, L):
     size = x.size()
     assert size[0] % L == 0
     x = x.view(size[0], size[1], -1)
-    x = x.transpose(2, 1).view(size[0]//L, -1, size[1])
+    x = x.transpose(2, 1).reshape(size[0]//L, -1, size[1])
     return x
 
 def posemb_sincos_2d(y, x, dim, device, dtype, temperature=10000):
@@ -135,11 +135,11 @@ class AVGPoolPatchEmbedding(nn.Module):
     """
     def __init__(self, in_dim, out_dim, scale:int=4, dw_conv=False, ksize=3, stride=1):
         super(AVGPoolPatchEmbedding, self).__init__()
-        assert scale == 4, 'It only supports for scale = 4'
+        # assert scale == 4, 'It only supports for scale = 4'
         assert ksize == 1 or ksize == 3, 'It only supports for ksize = 1 or 3'
-        self.scale = scale
+        self.scale = 4
         self.stride = stride
-        if scale == 4:
+        if self.scale == 4:
             # Conv2D on the grid of 4 x 4: stride=2 + ksize=3 or stride=1 + ksize=1/3
             assert (stride == 2 and ksize == 3) or (stride == 1 and (ksize == 1 or ksize == 3)), \
                 'Invalid stride or kernel_size when scale=4'
@@ -155,18 +155,50 @@ class AVGPoolPatchEmbedding(nn.Module):
         self.act = nn.ReLU(inplace=True)
         print(f"Patch Embedding Layer with emb = {'FC' if ksize == 1 else 'Conv'}, pooling = AvgPool.")
 
-    def forward(self, x):
+    def forward(self, x, overlap=None):
         """x: [B, N ,C]"""
+        N = x.shape[1]
         x, L = sequence2square(x, self.scale) # [B*N/16, C, 4, 4]
+        K = (N // 16) - 1  # There will be K = (N/16) - 1 such pairs
+
+        if overlap == 'right-left':
+            #### THERE IS ANOTHER SET OF REGIONS, THAT OVERLAP ORIGINAL REGIONS (RIGHT AND LEFT) ####
+            x = x.view(x.shape[0], x.shape[1], -1)
+            x_left_halves = torch.cat([x[:, :, :2], x[:, :, 4:6], x[:, :, 8:10], x[:, :, 12:14]], dim=-1)
+            x_right_halves = torch.cat([x[:, :, 2:4], x[:, :, 6:8], x[:, :, 10:12], x[:, :, 14:]], dim=-1)
+            x_left_halves_next = x_left_halves[1:, :, :]
+            x_right_halves_current = x_right_halves[:-1, :, :]
+
+            x3 = torch.cat((x_right_halves_current, x_left_halves_next), dim=-1)
+
+            x = torch.cat([x, x3], dim=0)
+            x = x.view(x.shape[0], x.shape[1], self.scale, self.scale)
+            L = L+K
+
+        elif overlap == 'bottom-top':
+            #### THERE IS ANOTHER SET OF REGIONS, THAT OVERLAP ORIGINAL REGIONS (BOTTOM AND TOP) ####
+            x = x.view(x.shape[0], x.shape[1], -1)
+            x_top_halves = x[:, :, :8]
+            x_bottom_halves = x[:, :, 8:]
+
+            x_top_halves_next = x_top_halves[1:, :, :]
+            x_bottom_halves_current = x_bottom_halves[:-1, :, :]
+
+            x2 = torch.cat((x_bottom_halves_current, x_top_halves_next), dim=-1)
+            x = torch.cat([x, x2], dim=0)
+            x = x.view(x.shape[0], x.shape[1], self.scale, self.scale)
+            L = L+K
+        
         x = self.conv(x) # [B*N/16, C, 4/s, 4/s]
         x = square2sequence(x, L) # [B, N/(s*s), C]
         x = self.norm(x)
         x = self.act(x)
-        x, L = sequence2square(x, self.scale//self.stride) # [B*N/16, C, 4/s, 4/s]
+        x, _ = sequence2square(x, self.scale//self.stride) # [B*N/16, C, 4/s, 4/s]
+
         x = self.pool(x) # [B*N/16, C, 1, 1]
         x = square2sequence(x, L) # [B, N/16, C]
-        return x
 
+        return x
 
 class GAPoolPatchEmbedding(nn.Module):
     """head layer (FC/Conv2D) + pooling Layer (global-attention pooling) for patch embedding.
