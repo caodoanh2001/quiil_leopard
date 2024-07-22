@@ -21,7 +21,7 @@ from dataset.utils import prepare_dataset, prepare_dataset_online
 from eval.utils import prepare_evaluator
 from loss.utils import *
 from optim import create_optimizer
-from dataset.GraphBatchWSI import collate_MIL_graph
+# from dataset.GraphBatchWSI import collate_MIL_graph
 
 from tqdm import tqdm
 #######################################################################
@@ -146,10 +146,11 @@ class MyHandler(object):
         self.patient_id.update({'label_visible': pids_train + pids_val})
         print('[exec] read patient IDs from {}'.format(path_split))
 
-        if self.bcb == 'graph':
-            collate = collate_MIL_graph
-        else:
-            collate = default_collate
+        # if self.bcb == 'graph':
+        #     collate = collate_MIL_graph
+        # else:
+        
+        collate = default_collate
 
         # Prepare datasets 
         train_set  = prepare_dataset(pids_train, self.cfg, ratio_sampling=self.cfg['train_sampling'])
@@ -205,10 +206,10 @@ class MyHandler(object):
             pass
         print('[exec] test patient IDs from {}'.format(self.cfg['test_path']))
 
-        if self.bcb == 'graph':
-            collate = collate_MIL_graph
-        else:
-            collate = default_collate
+        # if self.bcb == 'graph':
+        #     collate = collate_MIL_graph
+        # else:
+        collate = default_collate
 
         # Prepare datasets 
         test_set = prepare_dataset(pids, self.cfg, mask_ratio=self.cfg['test_mask_ratio'])
@@ -217,14 +218,22 @@ class MyHandler(object):
             generator=seed_generator(self.cfg['seed']), num_workers=self.cfg['num_workers'], 
             shuffle=False, worker_init_fn=seed_worker, collate_fn=collate
         )
+        # Get run_name
+        mode = self.cfg['semi_training_mode']
+        if 'UD' in mode and 'LD' in mode:
+            print('[exec_semi_sl] specify UD+LD, and start the second phrase ...')
+            run_name = 'semitrain_LD_UD'
+
+        else:
+            run_name = 'train'
 
         # Evals
         evals_loader = {'exec-test': test_loader}
         metrics = self._eval_all(evals_loader, ckpt_type='best', if_print=True, test_mode=True, 
-            test_mode_name=mode_name, test_zero_noise=self.cfg['test_zero_noise'])
+            test_mode_name=mode_name, test_zero_noise=self.cfg['test_zero_noise'], run_name=run_name)
         return metrics
 
-    def exec_test_online(self):
+    def exec_test_online(self, overlap=None):
         import glob
         print('[exec] execute test {} using backbone-mode {}.'.format(self.task, self.bcb))
         print('[exec] start testing {}.'.format(self.cfg['test_path']))
@@ -238,14 +247,14 @@ class MyHandler(object):
         test_set = prepare_dataset_online(slide_ids, self.cfg, mask_ratio=self.cfg['test_mask_ratio'])
         # self.patient_id.update({'exec-test': test_set.pids})
         test_loader = DataLoader(test_set, batch_size=self.cfg['batch_size'], 
-            generator=seed_generator(self.cfg['seed']), num_workers=self.cfg['num_workers'], 
+            generator=seed_generator(self.cfg['seed']), num_workers=0, 
             shuffle=False, worker_init_fn=seed_worker, collate_fn=collate
         )
 
         # Evals
         evals_loader = {'exec-test': test_loader}
         results = self._eval_all_online(evals_loader, ckpt_type='best', if_print=True, test_mode=True, 
-            test_mode_name=mode_name, test_zero_noise=self.cfg['test_zero_noise'])
+            test_mode_name=mode_name, test_zero_noise=self.cfg['test_zero_noise'], overlap=overlap)
         return slide_ids, results['y_hat']
 
     def _run_training(self, epochs, train_loader, name_loader, val_loaders=None, val_name=None, 
@@ -389,7 +398,7 @@ class MyHandler(object):
             label_visible_mask = [mode == 'wlabel' or (mode == 'wolabel' and mask) for mask in label_visible_mask]
 
         for i in range(n_sample):
-            data_x, data_x_ext, data_t, data_ind = xs[i][0], xs[i][1], ys[i][:, [0]], ys[i][:, [1]]
+            data_x, data_x_ext, data_x_ext2, data_t, data_ind = xs[i][0], xs[i][1], xs[i][2], ys[i][:, [0]], ys[i][:, [1]]
 
             if self.bcb == 'graph':
                 data_x = data_x.unsqueeze(0)
@@ -410,12 +419,12 @@ class MyHandler(object):
             
             # fake pairs = (pred, data_x)
             if self.bcb == 'graph':
-                pred = self.netG(data_x_ext, None) # data_x_ext -> GraphData if backbone=graph
+                pred = self.netG(data_x_ext, data_x_ext2) # data_x_ext -> GraphData if backbone=graph
             elif self.bcb == 'patch':
-                pred = self.netG(data_x, None) # skip coords if backbone=patch
+                pred = self.netG(data_x, data_x_ext2) # skip coords if backbone=patch
                 # pred = self.netG(data_x, data_x_ext)
             else:
-                pred = self.netG(data_x, data_x_ext)
+                pred = self.netG(data_x, data_x_ext2)
             pred_collector.append(pred)
 
             pat_mask = torch.logical_or(data_ind == 1, data_ind == 0).squeeze(-1)
@@ -469,7 +478,7 @@ class MyHandler(object):
             label_visible_mask = [mode == 'wlabel' or (mode == 'wolabel' and mask) for mask in label_visible_mask]
 
         for i in range(n_sample):
-            data_x, data_x_ext, data_t, data_ind = xs[i][0], xs[i][1], ys[i][:, [0]], ys[i][:, [1]]
+            data_x, data_x_ext, data_x_ext2, data_t, data_ind = xs[i][0], xs[i][1], xs[i][2], ys[i][:, [0]], ys[i][:, [1]]
             if self.task == 'disc_gansurv':
                 y, y_mask = get_label_mask(data_t, data_ind, self.nbins)
 
@@ -477,7 +486,7 @@ class MyHandler(object):
                 data_x = data_x.unsqueeze(0)
                 pred = self.netG(data_x_ext, None) # data_x_ext -> GraphData if backbone=graph
             elif self.bcb == 'patch':
-                pred = self.netG(data_x, None) # skip coords if backbone=patch
+                pred = self.netG(data_x, data_x_ext2) # skip coords if backbone=patch
                 # pred = self.netG(data_x, data_x_ext)
             else:
                 pred = self.netG(data_x, data_x_ext) # generate pred given data_x
@@ -538,7 +547,7 @@ class MyHandler(object):
         """
         if test_mode:
             print('[warning] you are in test mode now.')
-            ckpt_run_name = 'train'
+            ckpt_run_name = run_name
             wandb_group_name = test_mode_name
             metrics_path_name = test_mode_name
             csv_prefix_name = test_mode_name
@@ -594,6 +603,7 @@ class MyHandler(object):
 
             if self.cfg['save_prediction']:
                 dir_save_pred = self.cfg['save_path'] if not test_mode else self.cfg['test_save_path']
+                if not os.path.exists(dir_save_pred): os.mkdir(dir_save_pred)
                 path_save_pred = osp.join(dir_save_pred, '{}_pred_{}.csv'.format(csv_name, k))
                 patient_ids = self._get_patient_id(k, cltor['idx'])
                 save_prediction(patient_ids, cur_y, cur_y_hat, dist_y_hat, path_save_pred)
@@ -604,7 +614,7 @@ class MyHandler(object):
         return metrics
 
     def _eval_all_online(self, evals_loader, ckpt_type='best', run_name='train', if_print=True, 
-        test_mode=False, test_mode_name='test_mode', test_zero_noise=False):
+        test_mode=False, test_mode_name='test_mode', test_zero_noise=False, overlap=None):
         """
         test_mode=True only if run self.exec_test(), indicating a test mode.
         """
@@ -642,9 +652,8 @@ class MyHandler(object):
         for k, loader in evals_loader.items():
             if loader is None:
                 continue
-            cltor = self.test_model(self.netG, self.netD, self.bcb, loader, 
-                times_test_sample=sampling_times, checkpoints=ckpts, test_zero_noise=test_zero_noise
-            )
+            cltor = self.test_model(self.netG, self.netD, self.bcb, loader,
+                times_test_sample=sampling_times, checkpoints=ckpts, test_zero_noise=test_zero_noise, overlap=overlap)
         return cltor
     
     def _eval_and_print(self, cltor, name='', ret_metrics=None, at_epoch=None):
@@ -675,7 +684,7 @@ class MyHandler(object):
         return [p in label_visible_pids for p in pids]
 
     @staticmethod
-    def test_model(modelG, modelD, backbone, loader, times_test_sample=1, checkpoints=None, test_zero_noise=False):
+    def test_model(modelG, modelD, backbone, loader, times_test_sample=1, checkpoints=None, test_zero_noise=False, overlap=None):
         if checkpoints is not None:
             netG_ckpt = torch.load(checkpoints[0])
             netD_ckpt = torch.load(checkpoints[1])
@@ -687,14 +696,7 @@ class MyHandler(object):
         with torch.no_grad():
             for idx, x, y in tqdm(loader):
                 x_data, x_ext = [_x.cuda() for _x in x]
-                if backbone == 'graph':
-                    x_data = x_data.unsqueeze(0)
-                    y_hat = modelG(x_ext, None, zero_noise=test_zero_noise)
-                elif backbone == 'patch':
-                    y_hat = modelG(x_data, None, zero_noise=test_zero_noise) # skip coords if backbone=patch
-                    # y_hat = modelG(x_data, x_ext)
-                else:
-                    y_hat = modelG(x_data, x_ext, zero_noise=test_zero_noise)
+                y_hat = modelG(x_data, overlap, zero_noise=test_zero_noise) # skip coords if backbone=patch
                 f_fake = modelD(x_data, y_hat)
                 res = agg_tensor(res, 
                     {'idx': idx.detach().cpu(), 'y': y.detach().cpu(), 
@@ -705,13 +707,7 @@ class MyHandler(object):
                     # y_hat_list: [times_test_sample, B, out_dim]
                     y_hat_list = []
                     for i in range(times_test_sample):
-                        if backbone == 'graph':
-                            cur_y_hat = modelG(x_ext, None, zero_noise=test_zero_noise)
-                        elif backbone == 'patch':
-                            cur_y_hat = modelG(x_data, None, zero_noise=test_zero_noise) # skip coords if backbone=patch
-                            # cur_y_hat = modelG(x_data, x_ext)
-                        else:
-                            cur_y_hat = modelG(x_data, x_ext, zero_noise=test_zero_noise)
+                        cur_y_hat = modelG(x_data, overlap, zero_noise=test_zero_noise) # skip coords if backbone=patch
                         y_hat_list.append(cur_y_hat)
                     y_hat_list = torch.stack(y_hat_list)
                     res = agg_tensor(res, {'dist_y_hat': y_hat_list.transpose(0,1).detach().cpu()}) # [B, times_test, out_dim]
@@ -784,16 +780,24 @@ class MyHandler(object):
         )
 
         # val/test dataset
-        val_set, test_set = prepare_dataset(pids_val, self.cfg), prepare_dataset(pids_test, self.cfg)
-        self.patient_id.update({'validation': val_set.pids, 'test': test_set.pids})
+        val_set = prepare_dataset(pids_val, self.cfg)
+        self.patient_id.update({'validation': val_set.pids})
         val_loader = DataLoader(val_set, batch_size=self.cfg['batch_size'], 
             generator=seed_generator(self.cfg['seed']), num_workers=self.cfg['num_workers'], 
             shuffle=False,  worker_init_fn=seed_worker
         )
-        test_loader = DataLoader(test_set, batch_size=self.cfg['batch_size'], 
-            generator=seed_generator(self.cfg['seed']), num_workers=self.cfg['num_workers'], 
-            shuffle=False,  worker_init_fn=seed_worker
-        )
+        
+        if pids_test is not None:
+            test_set    = prepare_dataset(pids_test, self.cfg)
+            self.patient_id.update({'test': test_set.pids})
+            test_loader = DataLoader(test_set, batch_size=self.cfg['batch_size'], 
+                generator=seed_generator(self.cfg['seed']), num_workers=self.cfg['num_workers'], 
+                shuffle=False,  worker_init_fn=seed_worker
+            )
+        else:
+            test_set = None 
+            test_loader = None
+
         val_name = 'validation'
         val_loaders = {'validation': val_loader, 'test': test_loader}
 
@@ -851,8 +855,9 @@ class MyHandler(object):
             return metrics
 
         # evaluate using the model fitted on unlabeled dataset (best ckpt)
-        evals_loader = {'labeled_train': labeled_train_loader, 'unlabeled_train': unlabeled_train_loader, 
-            'validation': val_loader, 'test': test_loader}
+        # evals_loader = {'labeled_train': labeled_train_loader, 'unlabeled_train': unlabeled_train_loader, 
+        #     'validation': val_loader, 'test': test_loader}
+        evals_loader = {'validation': val_loader, 'test': test_loader}
         metrics = self._eval_all(evals_loader, ckpt_type='best', run_name=run_name, if_print=True)
         return metrics
 
