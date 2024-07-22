@@ -14,15 +14,13 @@ import torch.nn as nn
 # from torch_geometric.nn import GENConv, DeepGCNLayer
 
 from .backbone_utils import *
-
+import numpy as np
 
 def Model_Zoo(mode):
     if mode == 'patch':
         return DualTrans_HS
     elif mode == 'cluster':
         return DeepAttMISL
-    # elif mode == 'graph':
-    #     return PatchGCN
     else:
         return ABMIL
 
@@ -122,6 +120,13 @@ class DeepAttMISL(nn.Module):
         H = torch.mm(A, h_path)
         return H
 
+def square2sequence(x, L):
+    """[B*L, C, s, s] -> [B, L*s*s, c]"""
+    size = x.size()
+    assert size[0] % L == 0
+    x = x.view(size[0], size[1], -1)
+    x = x.transpose(2, 1).view(size[0]//L, -1, size[1])
+    return x
 
 class DualTrans_HS(nn.Module):
     """The implementation of Transformer-based ESAT. Refer to Shen et al., AAAI, 2022.
@@ -136,16 +141,12 @@ class DualTrans_HS(nn.Module):
         assert emb_backbone in ['avgpool', 'gapool']
         assert tra_backbone in ['Transformer', 'Identity']
         self.patch_embedding_layer = make_embedding_layer(emb_backbone, args_emb_backbone)
-        # self.dim_hid = dim_hid
         self.patch_encoder_layer = make_transformer_layer(tra_backbone, args_tra_backbone)
         self.pool = GAPool(dim_out, dim_out)
 
-    def forward(self, x, coord, *args):
+    def forward(self, x, overlap, *args):
         """x: [B, N, d], coord: the coordinates after discretization if not None"""
-        patch_emb = self.patch_embedding_layer(x)
-        # if coord is not None:
-        #     PE = compute_pe(coord, ndim=self.dim_hid, device=x.device, dtype=x.dtype)
-        #     patch_emb += PE
+        patch_emb = self.patch_embedding_layer(x, overlap)
         patch_feat = self.patch_encoder_layer(patch_emb)
         H = self.pool(patch_feat)
         return H
