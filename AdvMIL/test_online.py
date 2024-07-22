@@ -32,32 +32,60 @@ def main(handler, config):
         metrics = model.exec()
     print('[INFO] Metrics:', metrics)
 
-def multi_run_main(handler, config):
-    hyperparams = []
-    for k, v in config.items():
-        if isinstance(v, list):
-            hyperparams.append(k)
+def multi_run_main(handler, _config):
+    # fold 1: right-left
+    # fold 4: bottom-top
 
-    configs = grid(config)
-    
-    # Ensemble multi-fold:
-    # cnf = configs[0]
+    models = []
+
+    for i in range(5):
+        if i == 1:
+            config = _config["right-left"]
+            hyperparams = []
+            for k, v in config.items():
+                if isinstance(v, list):
+                    hyperparams.append(k)
+
+            configs = grid(config)
+            for k in hyperparams:
+                configs[1]['save_path'] += '-{}_{}'.format(k, configs[1][k])
+            model = handler(configs[1])
+        
+        elif i == 4:
+            config = _config["bottom-top"]
+            hyperparams = []
+            for k, v in config.items():
+                if isinstance(v, list):
+                    hyperparams.append(k)
+
+            configs = grid(config)
+            for k in hyperparams:
+                configs[4]['save_path'] += '-{}_{}'.format(k, configs[4][k])
+            model = handler(configs[4])
+        
+        else:
+            config = _config["base"]
+            hyperparams = []
+            for k, v in config.items():
+                if isinstance(v, list):
+                    hyperparams.append(k)
+
+            configs = grid(config)
+            for k in hyperparams:
+                configs[i]['save_path'] += '-{}_{}'.format(k, configs[i][k])
+            model = handler(configs[i])
+        
+        models.append(model)
+
+    overlaps = [None, 'right-left', None, None, 'bottom-top']
     ensemble_output = 0.
-    for cnf in configs:
-        print('\n')
-        for k in hyperparams:
-            cnf['save_path'] += '-{}_{}'.format(k, cnf[k])
-        # print(cnf['save_path'])
-        model = handler(cnf)
-        slide_ids, results = model.exec_test_online()
-        print(results)
+    for i in range(5):
+        slide_ids, results = models[i].exec_test_online(overlap=overlaps[i])
         ensemble_output += results[-1]
 
     # Prediction
     result = ensemble_output / len(configs)
-
     output_path = global_configs.configs[mode]['prediction_path']
-    
     json.dump(float(result), open(output_path, 'w'))
 
 def get_args():
@@ -98,7 +126,6 @@ def grid(kwargs):
 
         return reduce(lambda a, nd: merge_two_dicts(a, nd if nd else {}), dicts, {})
 
-
     sin = OrderedDict({k: v for k, v in kwargs.items() if isinstance(v, list)})
     for k, v in sin.items():
         copy_v = []
@@ -115,8 +142,10 @@ def grid(kwargs):
 
 if __name__ == '__main__':
     cfg = get_args()
-    config = get_config(cfg['config'])
-    print_config(config)
+    config_base = get_config("/workspace/AdvMIL/config/leopard_uni.yaml")
+    config_rightleft = get_config("/workspace/AdvMIL/config/leopard_uni_rightleft.yaml")
+    config_bottomtop = get_config("/workspace/AdvMIL/config/leopard_uni_bottomtop.yaml")
+    # print_config(config)
     if cfg['handler'] == 'adv':
         handler = MyHandler
     elif cfg['handler'] == 'base':
@@ -124,6 +153,6 @@ if __name__ == '__main__':
     else:
         handler = None
     if cfg['multi_run']:
-        multi_run_main(handler, config)
+        multi_run_main(handler, {"base": config_base, "right-left": config_rightleft, "bottom-top": config_bottomtop})
     else:
-        main(handler, config)
+        main(handler, {"right-left": config_rightleft, "bottom-top": config_bottomtop})
