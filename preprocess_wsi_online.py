@@ -4,7 +4,6 @@ import os
 # AdvMIL uses two levels (magnifications)
 patch_level_2 = True
 patch_level_1 = True
-
 feats = True
 
 # All commands
@@ -15,7 +14,7 @@ command_extract_patch_lv2 = " ".join([
     "--patch_size", str(configs["online"]["patch_size"]),
     "--step_size", str(configs["online"]["step_size"]),
     "--patch_level", str(configs["online"]["patch_level"]),
-    "--seg --patch"
+    "--seg --patch --preset bwh_biopsy.csv"
 ])
 
 command_extract_patch_lv1 = " ".join([
